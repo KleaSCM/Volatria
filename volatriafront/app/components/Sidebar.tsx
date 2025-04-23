@@ -123,41 +123,82 @@ export default function Sidebar() {
   };
 
   return (
-    <motion.div
-      initial={{ x: -300 }}
-      whileHover={{ x: 0 }}
-      transition={{
-        type: "spring",
-        stiffness: 300,
-        damping: 20,
-        mass: 0.5
-      }}
-      className="fixed left-0 top-0 h-full w-80 bg-purple-900/50 backdrop-blur-sm border-r border-purple-800 shadow-lg z-40 p-4 overflow-y-auto hover:shadow-pink-500/20"
-    >
-      <h2 className="text-2xl font-bold mb-6 text-pink-200">Market Overview</h2>
-      {loading ? (
-        <div className="text-pink-200 text-sm mb-4">Loading market data...</div>
-      ) : error ? (
-        <div className="text-red-300 text-sm mb-4">{error}</div>
-      ) : (
-        <div className="space-y-3">
-          {stocks.map((stock) => (
-            <motion.div
-              key={stock.symbol}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => handleStockClick(stock.symbol)}
-              className="flex flex-col p-3 bg-purple-800/30 hover:bg-purple-800/50 rounded-lg border border-purple-700 hover:border-pink-500 transition-all hover:shadow-lg hover:shadow-pink-500/20 cursor-pointer"
-            >
-              <div className="flex justify-between items-center mb-1">
-                <span className="font-semibold text-pink-200">{stock.symbol}</span>
-                <span className="text-lg font-medium text-white">${stock.price.toFixed(2)}</span>
-              </div>
-              <span className="text-sm text-purple-200">{stock.name}</span>
-            </motion.div>
-          ))}
+    <>
+      <motion.button
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={() => setIsOpen(!isOpen)}
+        className="fixed left-4 top-4 z-50 p-2 rounded-lg bg-purple-800/50 hover:bg-purple-700/50 border border-purple-700 hover:border-pink-500 transition-all hover:shadow-lg hover:shadow-pink-500/20"
+      >
+        <div className="w-6 h-5 relative flex flex-col justify-between">
+          <motion.span
+            animate={{ 
+              rotate: isOpen ? 45 : 0,
+              y: isOpen ? 8 : 0,
+              width: isOpen ? '100%' : '100%'
+            }}
+            className="block w-full h-0.5 bg-pink-200 rounded-full"
+          />
+          <motion.span
+            animate={{ 
+              opacity: isOpen ? 0 : 1,
+              width: isOpen ? '0%' : '100%'
+            }}
+            className="block w-full h-0.5 bg-pink-200 rounded-full"
+          />
+          <motion.span
+            animate={{ 
+              rotate: isOpen ? -45 : 0,
+              y: isOpen ? -8 : 0,
+              width: isOpen ? '100%' : '100%'
+            }}
+            className="block w-full h-0.5 bg-pink-200 rounded-full"
+          />
         </div>
-      )}
-    </motion.div>
+      </motion.button>
+
+      <motion.div
+        initial={{ x: -300 }}
+        animate={{ x: isOpen ? 0 : -300 }}
+        transition={{
+          type: "spring",
+          stiffness: 300,
+          damping: 20,
+          mass: 0.5
+        }}
+        onClick={() => setIsOpen(false)}
+        className="fixed left-0 top-0 h-full w-80 bg-purple-900/50 backdrop-blur-sm border-r border-purple-800 shadow-lg z-40 p-4 overflow-y-auto cursor-pointer"
+      >
+        <div onClick={(e) => e.stopPropagation()}>
+          <h2 className="text-2xl font-bold mb-6 text-pink-200">Market Overview</h2>
+          {loading ? (
+            <div className="text-pink-200 text-sm mb-4">Loading market data...</div>
+          ) : error ? (
+            <div className="text-red-300 text-sm mb-4">{error}</div>
+          ) : (
+            <div className="space-y-3">
+              {stocks.map((stock) => (
+                <motion.div
+                  key={stock.symbol}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleStockClick(stock.symbol);
+                  }}
+                  className="flex flex-col p-3 bg-purple-800/30 hover:bg-purple-800/50 rounded-lg border border-purple-700 hover:border-pink-500 transition-all hover:shadow-lg hover:shadow-pink-500/20 cursor-pointer"
+                >
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-semibold text-pink-200">{stock.symbol}</span>
+                    <span className="text-lg font-medium text-white">${stock.price.toFixed(2)}</span>
+                  </div>
+                  <span className="text-sm text-purple-200">{stock.name}</span>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </>
   );
 } 

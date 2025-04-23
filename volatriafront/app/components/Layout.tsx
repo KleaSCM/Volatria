@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Navigation from './Navigation';
 import { motion } from 'framer-motion';
+import Sidebar from './Sidebar';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -8,6 +9,7 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const [userID, setUserID] = useState<number | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     // Check if user is already logged in
@@ -30,8 +32,7 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-950 via-fuchsia-900 to-pink-900">
       <motion.div
-        initial={{ marginLeft: 0 }}
-        whileHover={{ marginLeft: "20rem" }}
+        animate={{ marginLeft: isSidebarOpen ? "20rem" : 0 }}
         transition={{
           type: "spring",
           stiffness: 300,

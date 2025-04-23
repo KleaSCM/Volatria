@@ -125,6 +125,7 @@
     --container-md: 28rem;
     --container-2xl: 42rem;
     --container-3xl: 48rem;
+    --container-6xl: 72rem;
     --container-7xl: 80rem;
     --text-sm: 0.875rem;
     --text-sm--line-height: calc(1.25 / 0.875);
@@ -345,6 +346,9 @@
   .left-0 {
     left: calc(var(--spacing) * 0);
   }
+  .left-4 {
+    left: calc(var(--spacing) * 4);
+  }
   .z-40 {
     z-index: 40;
   }
@@ -453,6 +457,12 @@
   .table {
     display: table;
   }
+  .h-0\.5 {
+    height: calc(var(--spacing) * 0.5);
+  }
+  .h-5 {
+    height: calc(var(--spacing) * 5);
+  }
   .h-8 {
     height: calc(var(--spacing) * 8);
   }
@@ -465,14 +475,23 @@
   .h-96 {
     height: calc(var(--spacing) * 96);
   }
+  .h-\[80vh\] {
+    height: 80vh;
+  }
   .h-\[300px\] {
     height: 300px;
+  }
+  .h-\[calc\(80vh-4rem\)\] {
+    height: calc(80vh - 4rem);
   }
   .h-full {
     height: 100%;
   }
   .min-h-screen {
     min-height: 100vh;
+  }
+  .w-6 {
+    width: calc(var(--spacing) * 6);
   }
   .w-8 {
     width: calc(var(--spacing) * 8);
@@ -491,6 +510,9 @@
   }
   .max-w-3xl {
     max-width: var(--container-3xl);
+  }
+  .max-w-6xl {
+    max-width: var(--container-6xl);
   }
   .max-w-7xl {
     max-width: var(--container-7xl);
@@ -688,6 +710,9 @@
       background-color: color-mix(in oklab, var(--color-green-900) 50%, transparent);
     }
   }
+  .bg-pink-200 {
+    background-color: var(--color-pink-200);
+  }
   .bg-pink-600 {
     background-color: var(--color-pink-600);
   }
@@ -722,6 +747,12 @@
     background-color: color-mix(in srgb, oklch(38.1% 0.176 304.987) 90%, transparent);
     @supports (color: color-mix(in lab, red, red)) {
       background-color: color-mix(in oklab, var(--color-purple-900) 90%, transparent);
+    }
+  }
+  .bg-purple-900\/95 {
+    background-color: color-mix(in srgb, oklch(38.1% 0.176 304.987) 95%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--color-purple-900) 95%, transparent);
     }
   }
   .bg-red-900\/50 {
