@@ -1,4 +1,10 @@
-# <img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&weight=600&size=30&duration=3000&pause=1000&color=F81CA8&center=true&vCenter=true&width=800&height=100&lines=Volatria+-+Real-time+Stock+Market+Dashboard" alt="Typing SVG" />
+# <div align="center">
+  <h1>
+    <a href="https://git.io/typing-svg">
+      <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=30&duration=3000&pause=1000&color=F81CA8&center=true&vCenter=true&width=800&height=100&lines=Volatria+-+Real-time+Stock+Market+Dashboard" alt="Typing SVG" />
+    </a>
+  </h1>
+</div>
 
 [![Go Version](https://img.shields.io/badge/Go-1.21+-F81CA8?style=for-the-badge&logo=go)](https://golang.org)
 [![Next.js](https://img.shields.io/badge/Next.js-14-00F5FF?style=for-the-badge&logo=next.js)](https://nextjs.org)
