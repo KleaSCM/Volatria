@@ -19,7 +19,17 @@ func main() {
 	}
 
 	// Initialize fetcher
-	stockFetcher := fetcher.New(db)
+	stockFetcher := fetcher.New(db, &fetcher.Config{
+		APIKey:            "d04bbfpr01qm4vp6enf0d04bbfpr01qm4vp6enfg",
+		BaseURL:           "https://www.alphavantage.co/query",
+		FetchInterval:     1 * time.Minute,
+		RequestTimeout:    10 * time.Second,
+		MaxConcurrent:     5,
+		RateLimitPerSec:   5,
+		RetryCount:        3,
+		RetryDelay:        100 * time.Millisecond,
+		HistoricalTimeout: 5 * time.Minute,
+	})
 	stockFetcher.Start()
 	defer stockFetcher.Stop()
 

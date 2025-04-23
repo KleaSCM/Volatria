@@ -1,32 +1,155 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/klea/volatria/volatria/internal/database"
 )
 
-type Handler struct {
-	db *database.Database
-}
-
 type CacheEntry struct {
 	Data      interface{}
 	Timestamp time.Time
 }
 
+type CacheMetrics struct {
+	Hits   int64
+	Misses int64
+	mu     sync.Mutex
+}
+
+func (m *CacheMetrics) RecordHit() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Hits++
+}
+
+func (m *CacheMetrics) RecordMiss() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Misses++
+}
+
+type Cache struct {
+	entries map[string]CacheEntry
+	mu      sync.RWMutex
+	ttl     time.Duration
+	metrics *CacheMetrics
+	maxSize int
+}
+
+func NewCache(ttl time.Duration, maxSize int) *Cache {
+	c := &Cache{
+		entries: make(map[string]CacheEntry),
+		ttl:     ttl,
+		metrics: &CacheMetrics{},
+		maxSize: maxSize,
+	}
+
+	// Start background cleanup
+	go c.cleanup()
+
+	return c
+}
+
+func (c *Cache) cleanup() {
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		c.mu.Lock()
+		now := time.Now()
+		for key, entry := range c.entries {
+			if now.Sub(entry.Timestamp) > c.ttl {
+				delete(c.entries, key)
+			}
+		}
+		c.mu.Unlock()
+	}
+}
+
+func (c *Cache) Get(key string) (interface{}, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	entry, exists := c.entries[key]
+	if !exists || time.Since(entry.Timestamp) > c.ttl {
+		c.metrics.RecordMiss()
+		return nil, false
+	}
+	c.metrics.RecordHit()
+	return entry.Data, true
+}
+
+func (c *Cache) Set(key string, data interface{}) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Remove oldest entry if cache is full
+	if len(c.entries) >= c.maxSize {
+		var oldestKey string
+		var oldestTime time.Time
+		for key, entry := range c.entries {
+			if oldestTime.IsZero() || entry.Timestamp.Before(oldestTime) {
+				oldestKey = key
+				oldestTime = entry.Timestamp
+			}
+		}
+		delete(c.entries, oldestKey)
+	}
+
+	c.entries[key] = CacheEntry{
+		Data:      data,
+		Timestamp: time.Now(),
+	}
+}
+
+func (c *Cache) Clear() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.entries = make(map[string]CacheEntry)
+}
+
+type StockResponse struct {
+	Symbol    string  `json:"symbol"`
+	Price     float64 `json:"price"`
+	Timestamp string  `json:"timestamp"`
+}
+
+type HistoricalResponse struct {
+	Symbol string  `json:"symbol"`
+	Prices []Price `json:"prices"`
+}
+
+type Price struct {
+	Price     float64 `json:"price"`
+	Timestamp string  `json:"timestamp"`
+}
+
+type ErrorResponse struct {
+	Error string `json:"error"`
+}
+
 var (
-	priceCache = make(map[string]CacheEntry)
-	chartCache = make(map[string]CacheEntry)
-	cacheTTL   = 5 * time.Minute // Cache data for 5 minutes
+	popularStocks = []string{"AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA", "AMD", "INTC", "SQ"}
+	globalCache   = NewCache(5*time.Minute, 100)
 )
 
+type Handler struct {
+	db    *database.Database
+	cache *Cache
+}
+
 func New(db *database.Database) *Handler {
-	return &Handler{db: db}
+	return &Handler{
+		db:    db,
+		cache: NewCache(5*time.Minute, 100),
+	}
 }
 
 func (h *Handler) Login(c *gin.Context) {
@@ -67,11 +190,9 @@ func (h *Handler) GetLatestPrice(c *gin.Context) {
 	symbol := c.Param("symbol")
 
 	// Check cache first
-	if entry, exists := priceCache[symbol]; exists {
-		if time.Since(entry.Timestamp) < cacheTTL {
-			c.JSON(http.StatusOK, entry.Data)
-			return
-		}
+	if entry, exists := h.cache.Get(symbol); exists {
+		c.JSON(http.StatusOK, entry)
+		return
 	}
 
 	price, err := h.db.GetLatestPrice(symbol)
@@ -81,10 +202,7 @@ func (h *Handler) GetLatestPrice(c *gin.Context) {
 	}
 
 	// Cache the result
-	priceCache[symbol] = CacheEntry{
-		Data:      gin.H{"symbol": symbol, "price": price},
-		Timestamp: time.Now(),
-	}
+	h.cache.Set(symbol, gin.H{"symbol": symbol, "price": price})
 
 	c.JSON(http.StatusOK, gin.H{"symbol": symbol, "price": price})
 }
@@ -95,11 +213,9 @@ func (h *Handler) GetHistoricalPrices(c *gin.Context) {
 
 	// Check cache first
 	cacheKey := fmt.Sprintf("%s_%s", symbol, rangeParam)
-	if entry, exists := chartCache[cacheKey]; exists {
-		if time.Since(entry.Timestamp) < cacheTTL {
-			c.JSON(http.StatusOK, entry.Data)
-			return
-		}
+	if entry, exists := h.cache.Get(cacheKey); exists {
+		c.JSON(http.StatusOK, entry)
+		return
 	}
 
 	// Parse range parameter
@@ -134,10 +250,7 @@ func (h *Handler) GetHistoricalPrices(c *gin.Context) {
 	}
 
 	// Cache the result
-	chartCache[cacheKey] = CacheEntry{
-		Data:      gin.H{"symbol": symbol, "prices": formattedPrices},
-		Timestamp: time.Now(),
-	}
+	h.cache.Set(cacheKey, gin.H{"symbol": symbol, "prices": formattedPrices})
 
 	c.JSON(http.StatusOK, gin.H{"symbol": symbol, "prices": formattedPrices})
 }
@@ -183,35 +296,178 @@ func (h *Handler) GetWatchlist(c *gin.Context) {
 	c.JSON(http.StatusOK, stocks)
 }
 
-func (h *Handler) GetPopularStocks(c *gin.Context) {
-	// List of different stocks to track
-	popularStocks := []string{"NVDA", "AMD", "INTC", "IBM", "ORCL", "CSCO", "ADBE", "CRM", "AVGO", "QCOM"}
+func (h *Handler) ValidateStockSymbol() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		symbol := c.Query("symbol")
+		if symbol == "" {
+			c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Symbol is required"})
+			c.Abort()
+			return
+		}
+		if len(symbol) > 10 {
+			c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Symbol too long"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
 
-	var stocks []struct {
-		Symbol string  `json:"symbol"`
-		Price  float64 `json:"price"`
+func (h *Handler) GetStock(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	symbol := c.Query("symbol")
+
+	// Check cache first
+	if cached, ok := h.cache.Get(symbol); ok {
+		c.JSON(http.StatusOK, cached)
+		return
 	}
 
-	for _, symbol := range popularStocks {
-		price, err := h.db.GetLatestPrice(symbol)
-		if err == nil {
-			stocks = append(stocks, struct {
-				Symbol string  `json:"symbol"`
-				Price  float64 `json:"price"`
-			}{
-				Symbol: symbol,
-				Price:  price,
-			})
+	price, err := h.db.GetLatestPrice(symbol)
+	if err != nil {
+		select {
+		case <-ctx.Done():
+			c.JSON(http.StatusRequestTimeout, ErrorResponse{Error: "Request timed out"})
+		default:
+			c.JSON(http.StatusNotFound, ErrorResponse{Error: fmt.Sprintf("Stock not found: %v", err)})
+		}
+		return
+	}
+
+	response := StockResponse{
+		Symbol:    symbol,
+		Price:     price,
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+
+	h.cache.Set(symbol, response)
+	c.JSON(http.StatusOK, response)
+}
+
+func (h *Handler) GetPopularStocks(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	responses := make([]StockResponse, len(popularStocks))
+	errors := make([]error, len(popularStocks))
+
+	for i, symbol := range popularStocks {
+		select {
+		case <-ctx.Done():
+			c.JSON(http.StatusRequestTimeout, ErrorResponse{Error: "Request timed out"})
+			return
+		default:
+			wg.Add(1)
+			go func(i int, symbol string) {
+				defer wg.Done()
+
+				// Check cache first
+				if cached, ok := h.cache.Get(symbol); ok {
+					responses[i] = cached.(StockResponse)
+					return
+				}
+
+				price, err := h.db.GetLatestPrice(symbol)
+				if err != nil {
+					errors[i] = fmt.Errorf("failed to fetch %s: %v", symbol, err)
+					return
+				}
+
+				response := StockResponse{
+					Symbol:    symbol,
+					Price:     price,
+					Timestamp: time.Now().Format(time.RFC3339),
+				}
+
+				h.cache.Set(symbol, response)
+				responses[i] = response
+			}(i, symbol)
 		}
 	}
 
-	// Ensure we always return a valid JSON array, even if empty
-	if stocks == nil {
-		stocks = make([]struct {
-			Symbol string  `json:"symbol"`
-			Price  float64 `json:"price"`
-		}, 0)
+	wg.Wait()
+
+	// Filter out any errors and log them
+	validResponses := make([]StockResponse, 0, len(popularStocks))
+	for i, response := range responses {
+		if errors[i] != nil {
+			fmt.Printf("Error fetching stock: %v\n", errors[i])
+			continue
+		}
+		validResponses = append(validResponses, response)
 	}
 
-	c.JSON(http.StatusOK, stocks)
+	c.JSON(http.StatusOK, validResponses)
+}
+
+func (h *Handler) GetHistoricalData(c *gin.Context) {
+	symbol := c.Query("symbol")
+	rangeParam := c.Query("range")
+
+	if symbol == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Symbol is required"})
+		return
+	}
+
+	var start, end time.Time
+	now := time.Now()
+
+	switch rangeParam {
+	case "7d":
+		start = now.AddDate(0, 0, -7)
+		end = now
+	case "1m":
+		start = now.AddDate(0, -1, 0)
+		end = now
+	case "1y":
+		start = now.AddDate(-1, 0, 0)
+		end = now
+	default:
+		// Default to 1 year if range is not specified
+		start = now.AddDate(-1, 0, 0)
+		end = now
+	}
+
+	stocks, err := h.db.GetHistoricalPrices(symbol, start, end)
+	if err != nil {
+		c.JSON(http.StatusNotFound, ErrorResponse{Error: "Historical data not found"})
+		return
+	}
+
+	prices := make([]Price, len(stocks))
+	for i, stock := range stocks {
+		prices[i] = Price{
+			Price:     stock.Price,
+			Timestamp: stock.Timestamp.Format(time.RFC3339),
+		}
+	}
+
+	response := HistoricalResponse{
+		Symbol: symbol,
+		Prices: prices,
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// Add metrics endpoint
+func (h *Handler) GetMetrics(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"cache_hits":   h.cache.metrics.Hits,
+		"cache_misses": h.cache.metrics.Misses,
+		"hit_rate":     float64(h.cache.metrics.Hits) / float64(h.cache.metrics.Hits+h.cache.metrics.Misses),
+	})
+}
+
+// Start a background goroutine to periodically clear the cache
+func init() {
+	go func() {
+		for {
+			time.Sleep(5 * time.Minute)
+			globalCache.Clear()
+		}
+	}()
 }
