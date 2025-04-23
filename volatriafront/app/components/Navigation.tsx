@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { stockApi } from '../lib/api';
+import Image from 'next/image';
 
 interface NavigationProps {
   userID: number | null;
   onLogin: (userID: number) => void;
   onLogout: () => void;
+  showProfile: boolean;
+  setShowProfile: (show: boolean) => void;
 }
 
-export default function Navigation({ userID, onLogin, onLogout }: NavigationProps) {
+export default function Navigation({ userID, onLogin, onLogout, showProfile, setShowProfile }: NavigationProps) {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -25,8 +28,8 @@ export default function Navigation({ userID, onLogin, onLogout }: NavigationProp
       setShowLoginModal(false);
       setUsername('');
       setPassword('');
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
+    } catch (err: { message?: string } | unknown) {
+      setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -52,8 +55,22 @@ export default function Navigation({ userID, onLogin, onLogout }: NavigationProp
                     Dashboard
                   </Link>
                   <button
+                    onClick={() => setShowProfile(!showProfile)}
+                    className="p-1 bg-purple-900/50 backdrop-blur-sm rounded-full border border-purple-700 hover:border-pink-500 transition-colors"
+                  >
+                    <div className="relative w-8 h-8">
+                      <Image
+                        src="/shandris1.jpg"
+                        alt="Profile"
+                        fill
+                        className="rounded-full object-cover border-2 border-purple-600"
+                        priority
+                      />
+                    </div>
+                  </button>
+                  <button
                     onClick={onLogout}
-                    className="bg-purple-800 text-white hover:bg-purple-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    className="bg-pink-600 text-white hover:bg-pink-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                   >
                     Logout
                   </button>

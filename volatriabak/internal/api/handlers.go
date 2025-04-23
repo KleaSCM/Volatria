@@ -201,10 +201,15 @@ func (h *Handler) GetLatestPrice(c *gin.Context) {
 		return
 	}
 
-	// Cache the result
-	h.cache.Set(symbol, gin.H{"symbol": symbol, "price": price})
+	// Cache the result with timestamp
+	response := gin.H{
+		"symbol":    symbol,
+		"price":     price,
+		"timestamp": time.Now().Format(time.RFC3339),
+	}
+	h.cache.Set(symbol, response)
 
-	c.JSON(http.StatusOK, gin.H{"symbol": symbol, "price": price})
+	c.JSON(http.StatusOK, response)
 }
 
 func (h *Handler) GetHistoricalPrices(c *gin.Context) {
@@ -286,14 +291,40 @@ func (h *Handler) AddToWatchlist(c *gin.Context) {
 }
 
 func (h *Handler) GetWatchlist(c *gin.Context) {
-	userID := c.GetInt("userID")
-	stocks, err := h.db.GetWatchlist(userID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch watchlist"})
+	userIDStr := c.GetHeader("X-User-ID")
+	if userIDStr == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	c.JSON(http.StatusOK, stocks)
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	stocks, err := h.db.GetWatchlist(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to fetch watchlist: %v", err)})
+		return
+	}
+
+	// Format stocks with string timestamps
+	formattedStocks := make([]gin.H, len(stocks))
+	for i, stock := range stocks {
+		formattedStocks[i] = gin.H{
+			"symbol":    stock.Symbol,
+			"price":     stock.Price,
+			"timestamp": stock.Timestamp.Format(time.RFC3339),
+		}
+	}
+
+	// Return empty array if no stocks found
+	if len(formattedStocks) == 0 {
+		formattedStocks = []gin.H{}
+	}
+
+	c.JSON(http.StatusOK, formattedStocks)
 }
 
 func (h *Handler) ValidateStockSymbol() gin.HandlerFunc {

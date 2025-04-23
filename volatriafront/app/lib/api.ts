@@ -6,12 +6,12 @@ const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
 
 // Debug logging utility
 const debug = {
-  log: (...args: any[]) => {
+  log: (...args: unknown[]): void => {
     if (process.env.NODE_ENV === 'development') {
       console.log('[API]', ...args);
     }
   },
-  error: (...args: any[]) => {
+  error: (...args: unknown[]): void => {
     if (process.env.NODE_ENV === 'development') {
       console.error('[API]', ...args);
     }
@@ -35,44 +35,25 @@ api.interceptors.request.use((config) => {
   if (userID) {
     config.headers['X-User-ID'] = userID;
   }
-  // Create a safe copy of headers without sensitive information
-  const safeHeaders = { ...config.headers };
-  delete safeHeaders['X-API-Key'];
-  debug.log('Making request to:', config.url, 'with headers:', safeHeaders);
   return config;
 });
 
 // Add response interceptor for error handling
 api.interceptors.response.use(
-  (response) => {
-    debug.log('Response received:', response.status, response.data);
-    return response;
-  },
+  (response) => response,
   async (error: AxiosError) => {
-    // Create a safe copy of config without sensitive information
-    const safeConfig = error.config ? {
-      url: error.config.url,
-      method: error.config.method,
-      headers: Object.fromEntries(
-        Object.entries(error.config.headers || {})
-          .filter(([key]) => key !== 'X-API-Key')
-      )
-    } : undefined;
-
-    debug.error('API Error:', {
-      message: error.message,
-      status: error.response?.status,
-      data: error.response?.data,
-      config: safeConfig,
-    });
-
-    // If the error is due to network issues, retry the request
-    if (!error.response && error.config) {
-      debug.log('Retrying request due to network error');
-      return api(error.config);
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      const errorMessage = (error.response.data as { error?: string })?.error || 'An error occurred';
+      return Promise.reject(new Error(errorMessage));
+    } else if (error.request) {
+      // The request was made but no response was received
+      return Promise.reject(new Error('No response from server'));
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      return Promise.reject(new Error('Request failed'));
     }
-
-    return Promise.reject(error);
   }
 );
 
@@ -82,9 +63,8 @@ export const stockApi = {
       const response = await api.post('/login', { username, password });
       return response.data;
     } catch (error) {
-      debug.error('Login error:', error);
       if (axios.isAxiosError(error)) {
-        throw new Error(error.response?.data?.error || 'Login failed');
+        throw new Error((error.response?.data as { error?: string })?.error || 'Login failed');
       }
       throw error;
     }
@@ -96,12 +76,12 @@ export const stockApi = {
       return {
         symbol: response.data.symbol,
         price: response.data.price,
-        timestamp: response.data.timestamp
+        timestamp: new Date(response.data.timestamp).toISOString(),
+        name: symbol // Using symbol as name for now
       };
     } catch (error) {
-      debug.error('Get latest price error:', error);
       if (axios.isAxiosError(error)) {
-        throw new Error(error.response?.data?.error || 'Failed to get latest price');
+        throw new Error((error.response?.data as { error?: string })?.error || 'Failed to get latest price');
       }
       throw error;
     }
@@ -110,7 +90,6 @@ export const stockApi = {
   getHistoricalPrices: async (symbol: string, range: string = '7d'): Promise<StockChartData> => {
     try {
       const response = await api.get(`/stocks/${symbol}/chart?range=${range}`);
-      debug.log('Historical prices response:', response.data);
       
       if (!response.data || !response.data.prices || !Array.isArray(response.data.prices)) {
         throw new Error('Invalid response format from server');
@@ -118,16 +97,16 @@ export const stockApi = {
 
       return {
         symbol: response.data.symbol,
-        prices: response.data.prices.map((price: any) => ({
+        prices: response.data.prices.map((price: { symbol: string; price: number; timestamp: string }) => ({
           symbol: price.symbol,
           price: price.price,
-          timestamp: price.timestamp
+          timestamp: new Date(price.timestamp).toISOString(),
+          name: price.symbol
         }))
       };
     } catch (error) {
-      debug.error('Get historical prices error:', error);
       if (axios.isAxiosError(error)) {
-        throw new Error(error.response?.data?.error || 'Failed to get historical prices');
+        throw new Error((error.response?.data as { error?: string })?.error || 'Failed to get historical prices');
       }
       throw error;
     }
@@ -137,9 +116,8 @@ export const stockApi = {
     try {
       await api.post('/watchlist', { symbol });
     } catch (error) {
-      debug.error('Add to watchlist error:', error);
       if (axios.isAxiosError(error)) {
-        throw new Error(error.response?.data?.error || 'Failed to add to watchlist');
+        throw new Error((error.response?.data as { error?: string })?.error || 'Failed to add to watchlist');
       }
       throw error;
     }
@@ -148,11 +126,30 @@ export const stockApi = {
   getWatchlist: async (): Promise<Stock[]> => {
     try {
       const response = await api.get('/watchlist');
-      return response.data;
+      return response.data.map((stock: { symbol: string; price: number; timestamp: string }) => ({
+        symbol: stock.symbol,
+        price: stock.price,
+        timestamp: new Date(stock.timestamp).toISOString(),
+        name: stock.symbol
+      }));
     } catch (error) {
-      debug.error('Get watchlist error:', error);
       if (axios.isAxiosError(error)) {
-        throw new Error(error.response?.data?.error || 'Failed to get watchlist');
+        throw new Error((error.response?.data as { error?: string })?.error || 'Failed to get watchlist');
+      }
+      throw error;
+    }
+  },
+
+  getPortfolioValue: async (): Promise<{ value: number; dailyChange: number }> => {
+    try {
+      const response = await api.get('/portfolio/value');
+      return {
+        value: response.data.value,
+        dailyChange: response.data.dailyChange
+      };
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        throw new Error((error.response?.data as { error?: string })?.error || 'Failed to get portfolio value');
       }
       throw error;
     }

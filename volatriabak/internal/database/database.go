@@ -334,8 +334,11 @@ func (d *Database) AddToWatchlist(userID int, symbol string) error {
 }
 
 func (d *Database) GetWatchlist(userID int) ([]Stock, error) {
+	d.acquire()
+	defer d.release()
+
 	rows, err := d.db.Query(`
-		SELECT w.symbol, s.price, s.timestamp
+		SELECT w.symbol, COALESCE(s.price, 0) as price, COALESCE(s.timestamp, w.added_at) as timestamp
 		FROM watchlist w
 		LEFT JOIN (
 			SELECT symbol, price, timestamp
@@ -346,21 +349,34 @@ func (d *Database) GetWatchlist(userID int) ([]Stock, error) {
 				GROUP BY symbol
 			)
 		) s ON w.symbol = s.symbol
-		WHERE w.user_id = ?
-		ORDER BY w.added_at DESC
+		WHERE w.user_id = $1
 	`, userID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query watchlist: %v", err)
 	}
 	defer rows.Close()
 
 	var stocks []Stock
 	for rows.Next() {
-		var s Stock
-		if err := rows.Scan(&s.Symbol, &s.Price, &s.Timestamp); err != nil {
-			return nil, err
+		var stock Stock
+		var timestampStr string
+		if err := rows.Scan(&stock.Symbol, &stock.Price, &timestampStr); err != nil {
+			return nil, fmt.Errorf("failed to scan stock: %v", err)
 		}
-		stocks = append(stocks, s)
+
+		// Parse the timestamp string into time.Time using the correct format
+		timestamp, err := time.Parse("2006-01-02 15:04:05.999999999-07:00", timestampStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse timestamp: %v", err)
+		}
+		stock.Timestamp = timestamp
+
+		stocks = append(stocks, stock)
 	}
-	return stocks, rows.Err()
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating watchlist rows: %v", err)
+	}
+
+	return stocks, nil
 }

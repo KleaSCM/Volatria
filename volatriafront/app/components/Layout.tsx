@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Navigation from './Navigation';
-import { motion } from 'framer-motion';
 import Sidebar from './Sidebar';
 
 interface LayoutProps {
@@ -9,7 +9,9 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const [userID, setUserID] = useState<number | null>(null);
+  const [showProfile, setShowProfile] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     // Check if user is already logged in
@@ -27,24 +29,27 @@ export default function Layout({ children }: LayoutProps) {
   const handleLogout = () => {
     setUserID(null);
     localStorage.removeItem('userID');
+    router.push('/');
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-950 via-fuchsia-900 to-pink-900">
-      <motion.div
-        animate={{ marginLeft: isSidebarOpen ? "20rem" : 0 }}
-        transition={{
-          type: "spring",
-          stiffness: 300,
-          damping: 20,
-          mass: 0.5
-        }}
-      >
-        <Navigation userID={userID} onLogin={handleLogin} onLogout={handleLogout} />
-        <main className="p-8">
-          {children}
-        </main>
-      </motion.div>
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 to-black text-white">
+      <Navigation 
+        userID={userID} 
+        onLogin={handleLogin} 
+        onLogout={handleLogout}
+        showProfile={showProfile}
+        setShowProfile={setShowProfile}
+      />
+      <Sidebar 
+        isOpen={isSidebarOpen} 
+        onClose={() => setIsSidebarOpen(false)} 
+        onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+        userID={userID}
+      />
+      <main className="p-4 sm:p-6 lg:p-8">
+        {children}
+      </main>
     </div>
   );
 } 
