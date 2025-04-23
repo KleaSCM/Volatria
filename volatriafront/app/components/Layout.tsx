@@ -1,10 +1,16 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Navigation from './Navigation';
 import Sidebar from './Sidebar';
+import Profile from './Profile';
 
 interface LayoutProps {
   children: React.ReactNode;
+}
+
+interface DashboardProps {
+  showProfile: boolean;
+  setShowProfile: (show: boolean) => void;
 }
 
 export default function Layout({ children }: LayoutProps) {
@@ -48,8 +54,22 @@ export default function Layout({ children }: LayoutProps) {
         userID={userID}
       />
       <main className="p-4 sm:p-6 lg:p-8">
-        {children}
+        {React.cloneElement(children as React.ReactElement<DashboardProps>, {
+          showProfile,
+          setShowProfile
+        })}
       </main>
+      {/* Profile Box */}
+      {showProfile && (
+        <div className="fixed top-4 right-4 z-50">
+          <Profile 
+            username="Shandris" 
+            onLogout={handleLogout} 
+            profilePicture="/shandris1.jpg"
+            setShowProfile={setShowProfile}
+          />
+        </div>
+      )}
     </div>
   );
 } 

@@ -6,9 +6,10 @@ interface ProfileProps {
   username: string;
   onLogout: () => void;
   profilePicture?: string;
+  setShowProfile: (show: boolean) => void;
 }
 
-export default function Profile({ username, onLogout, profilePicture }: ProfileProps) {
+export default function Profile({ username, onLogout, profilePicture, setShowProfile }: ProfileProps) {
   const [preferences, setPreferences] = useState({
     theme: 'dark',
     notifications: true,
@@ -29,6 +30,16 @@ export default function Profile({ username, onLogout, profilePicture }: ProfileP
       animate={{ opacity: 1, x: 0 }}
       className="bg-purple-900/50 backdrop-blur-sm rounded-xl border border-purple-700 p-6 sticky top-4"
     >
+      <div className="flex justify-between items-start mb-6">
+        <button
+          onClick={() => setShowProfile(false)}
+          className="text-purple-300 hover:text-pink-200 transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
       <div className="flex flex-col items-center mb-6">
         <div className="relative w-24 h-24 mb-4">
           <Image

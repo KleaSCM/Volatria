@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { format } from 'date-fns';
 import { stockApi } from '../lib/api';
@@ -10,13 +9,11 @@ import Layout from '../components/Layout';
 import { motion, AnimatePresence } from 'framer-motion';
 import LiveChart from '../components/LiveChart';
 import AlertTicker from '../components/AlertTicker';
-import Profile from '../components/Profile';
 import Image from 'next/image';
 
 const COLORS = ['#EC4899', '#A855F7', '#3B82F6', '#10B981', '#F59E0B'];
 
 export default function Dashboard() {
-  const router = useRouter();
   const [watchlist, setWatchlist] = useState<Stock[]>([]);
   const [selectedStock, setSelectedStock] = useState<StockChartData | null>(null);
   const [newSymbol, setNewSymbol] = useState('');
@@ -25,7 +22,6 @@ export default function Dashboard() {
   const [portfolioValue, setPortfolioValue] = useState(0);
   const [dailyChange, setDailyChange] = useState(0);
   const [alerts, setAlerts] = useState<{id: number, message: string, type: 'info' | 'success' | 'warning' | 'error'}[]>([]);
-  const [showProfile, setShowProfile] = useState(false);
   const [userPreferences, setUserPreferences] = useState({
     theme: 'dark',
     notifications: true,
@@ -116,11 +112,6 @@ export default function Dashboard() {
     setAlerts(alerts.filter(alert => alert.id !== id));
   };
 
-  const handleLogout = () => {
-    // Implement logout logic
-    router.push('/');
-  };
-
   return (
     <Layout>
       <div className="max-w-7xl mx-auto">
@@ -145,40 +136,6 @@ export default function Dashboard() {
               ))}
             </AnimatePresence>
           </div>
-        </div>
-
-        {/* Profile */}
-        <div className="fixed top-4 right-4 z-50">
-          <AnimatePresence>
-            {showProfile && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-              >
-                <Profile 
-                  username="Shandris" 
-                  onLogout={handleLogout} 
-                  profilePicture="/shandris1.jpg"
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <button
-            onClick={() => setShowProfile(!showProfile)}
-            className="p-1 bg-purple-900/50 backdrop-blur-sm rounded-full border border-purple-700 hover:border-pink-500 transition-colors"
-          >
-            <div className="relative w-8 h-8">
-              <Image
-                src="/shandris1.jpg"
-                alt="Profile"
-                fill
-                className="rounded-full object-cover border-2 border-purple-600"
-                priority
-              />
-            </div>
-          </button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -220,11 +177,182 @@ export default function Dashboard() {
               </motion.div>
             </div>
 
+            {/* Profile Section */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              className="mb-8 p-6 bg-purple-900/50 backdrop-blur-sm rounded-xl border border-purple-700"
+            >
+              <div className="flex items-center space-x-6">
+                <div className="relative w-24 h-24">
+                  <Image
+                    src="/shandris1.jpg"
+                    alt="Profile"
+                    fill
+                    className="rounded-full object-cover border-2 border-purple-600"
+                    priority
+                  />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-pink-200">Shandris</h2>
+                  <p className="text-lg text-purple-200">Premium Member</p>
+                  <p className="text-sm text-purple-300">Trading Enthusiast & Market Analyst</p>
+                  <p className="text-xs text-purple-400 mt-1">Member since 2024</p>
+                  <div className="flex items-center space-x-2 mt-2">
+                    <span className="text-xs text-purple-300">Verified Trader</span>
+                    <span className="text-xs text-purple-300">•</span>
+                    <span className="text-xs text-purple-300">Top 5% Performance</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Trading Statistics */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.4 }}
+                className="p-6 bg-purple-900/50 backdrop-blur-sm rounded-xl border border-purple-700"
+              >
+                <h3 className="text-lg font-semibold text-pink-200 mb-4">Performance Metrics</h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-purple-300">Total Profit</span>
+                    <span className="text-sm font-bold text-green-400">+$12,450</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-purple-300">Monthly Return</span>
+                    <span className="text-sm font-bold text-green-400">+5.8%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-purple-300">Annual Return</span>
+                    <span className="text-sm font-bold text-green-400">+32.4%</span>
+                  </div>
+                </div>
+              </motion.div>
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.5 }}
+                className="p-6 bg-purple-900/50 backdrop-blur-sm rounded-xl border border-purple-700"
+              >
+                <h3 className="text-lg font-semibold text-pink-200 mb-4">Risk Metrics</h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-purple-300">Sharpe Ratio</span>
+                    <span className="text-sm font-bold text-pink-200">1.8</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-purple-300">Max Drawdown</span>
+                    <span className="text-sm font-bold text-red-400">-12.3%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-purple-300">Volatility</span>
+                    <span className="text-sm font-bold text-purple-200">18.5%</span>
+                  </div>
+                </div>
+              </motion.div>
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.6 }}
+                className="p-6 bg-purple-900/50 backdrop-blur-sm rounded-xl border border-purple-700"
+              >
+                <h3 className="text-lg font-semibold text-pink-200 mb-4">Trading Activity</h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-purple-300">Active Positions</span>
+                    <span className="text-sm font-bold text-pink-200">8</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-purple-300">Avg. Holding Time</span>
+                    <span className="text-sm font-bold text-purple-200">14 days</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-purple-300">Success Rate</span>
+                    <span className="text-sm font-bold text-green-400">78%</span>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Additional Trading Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.7 }}
+                className="p-6 bg-purple-900/50 backdrop-blur-sm rounded-xl border border-purple-700"
+              >
+                <h3 className="text-lg font-semibold text-pink-200 mb-4">Trade History</h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-purple-300">Total Trades</span>
+                    <span className="text-sm font-bold text-pink-200">128</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-purple-300">Win Rate</span>
+                    <span className="text-sm font-bold text-green-400">78%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-purple-300">Best Trade</span>
+                    <span className="text-sm font-bold text-green-400">+24.5%</span>
+                  </div>
+                </div>
+              </motion.div>
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.8 }}
+                className="p-6 bg-purple-900/50 backdrop-blur-sm rounded-xl border border-purple-700"
+              >
+                <h3 className="text-lg font-semibold text-pink-200 mb-4">Portfolio Metrics</h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-purple-300">Beta</span>
+                    <span className="text-sm font-bold text-purple-200">1.2</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-purple-300">Alpha</span>
+                    <span className="text-sm font-bold text-green-400">+0.8</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-purple-300">Sortino Ratio</span>
+                    <span className="text-sm font-bold text-pink-200">2.1</span>
+                  </div>
+                </div>
+              </motion.div>
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.9 }}
+                className="p-6 bg-purple-900/50 backdrop-blur-sm rounded-xl border border-purple-700"
+              >
+                <h3 className="text-lg font-semibold text-pink-200 mb-4">Market Analysis</h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-purple-300">Market Timing</span>
+                    <span className="text-sm font-bold text-green-400">Excellent</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-purple-300">Sector Exposure</span>
+                    <span className="text-sm font-bold text-purple-200">Balanced</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-purple-300">Risk Level</span>
+                    <span className="text-sm font-bold text-pink-200">Moderate</span>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+
             {/* Portfolio Performance Chart */}
             <motion.div 
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
+              transition={{ duration: 0.5, delay: 0.5 }}
               className="mb-8 p-6 bg-purple-900/50 backdrop-blur-sm rounded-xl border border-purple-700"
             >
               <div className="flex justify-between items-center mb-4">
@@ -280,7 +408,7 @@ export default function Dashboard() {
             <motion.div 
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
+              transition={{ duration: 0.5, delay: 0.6 }}
               className="mb-8 p-6 bg-purple-900/50 backdrop-blur-sm rounded-xl border border-purple-700"
             >
               <h3 className="text-lg font-semibold text-pink-200 mb-4">Portfolio Allocation</h3>
