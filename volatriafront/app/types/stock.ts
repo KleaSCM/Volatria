@@ -4,6 +4,7 @@ export interface Stock {
   timestamp: string;
   type?: 'line' | 'bar' | 'area' | 'scatter';
   title?: string;
+  name: string;
 }
 
 export interface StockChartData {

@@ -70,6 +70,12 @@ func (f *Fetcher) fetchHistoricalData() {
 	symbols := []string{
 		"AAPL", "GOOGL", "MSFT", "AMZN", "TSLA",
 		"META", "NVDA", "AMD", "INTC", "IBM",
+		"ORCL", "CSCO", "ADBE", "CRM", "AVGO",
+		"QCOM", "TXN", "MU", "T", "VZ",
+		"DIS", "NFLX", "PYPL", "SQ", "SHOP",
+		"ZM", "DOCU", "SNOW", "DDOG", "CRWD",
+		"ZS", "OKTA", "TEAM", "MDB", "NET",
+		"ASAN", "TWLO", "RNG", "FSLY",
 	}
 
 	for _, symbol := range symbols {

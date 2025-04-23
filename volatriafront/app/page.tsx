@@ -31,6 +31,48 @@ const popularStocks: PopularStock[] = [
   { symbol: 'AMZN', type: 'scatter', title: 'Price Points' }
 ];
 
+const stockNames: { [key: string]: string } = {
+  'AAPL': 'Apple Inc.',
+  'MSFT': 'Microsoft Corporation',
+  'GOOGL': 'Alphabet Inc.',
+  'AMZN': 'Amazon.com Inc.',
+  'TSLA': 'Tesla Inc.',
+  'META': 'Meta Platforms Inc.',
+  'NVDA': 'NVIDIA Corporation',
+  'AMD': 'Advanced Micro Devices',
+  'INTC': 'Intel Corporation',
+  'IBM': 'International Business Machines',
+  'ORCL': 'Oracle Corporation',
+  'CSCO': 'Cisco Systems',
+  'ADBE': 'Adobe Inc.',
+  'CRM': 'Salesforce Inc.',
+  'AVGO': 'Broadcom Inc.',
+  'QCOM': 'Qualcomm Inc.',
+  'TXN': 'Texas Instruments',
+  'MU': 'Micron Technology',
+  'T': 'AT&T Inc.',
+  'VZ': 'Verizon Communications',
+  'DIS': 'The Walt Disney Company',
+  'NFLX': 'Netflix Inc.',
+  'PYPL': 'PayPal Holdings',
+  'SQ': 'Square Inc.',
+  'SHOP': 'Shopify Inc.',
+  'ZM': 'Zoom Video Communications',
+  'DOCU': 'DocuSign Inc.',
+  'SNOW': 'Snowflake Inc.',
+  'DDOG': 'Datadog Inc.',
+  'CRWD': 'CrowdStrike Holdings',
+  'ZS': 'Zscaler Inc.',
+  'OKTA': 'Okta Inc.',
+  'TEAM': 'Atlassian Corporation',
+  'MDB': 'MongoDB Inc.',
+  'NET': 'Cloudflare Inc.',
+  'ASAN': 'Asana Inc.',
+  'TWLO': 'Twilio Inc.',
+  'RNG': 'RingCentral Inc.',
+  'FSLY': 'Fastly Inc.'
+};
+
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Stock[]>([]);
@@ -43,7 +85,12 @@ export default function Home() {
   const [historicalData, setHistoricalData] = useState<Record<string, Stock[]>>({});
 
   // Popular stocks to show
-  const popularSymbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META'];
+  const popularSymbols = [
+    'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META',
+    'NVDA', 'AMD', 'INTC', 'IBM', 'ORCL', 'CSCO',
+    'ADBE', 'CRM', 'AVGO', 'QCOM', 'TXN', 'MU',
+    'T', 'VZ', 'DIS', 'NFLX', 'PYPL', 'SQ'
+  ];
 
   useEffect(() => {
     const fetchPopularStocks = async () => {
@@ -73,41 +120,49 @@ export default function Home() {
     try {
       // First fetch the latest price
       const priceResponse = await fetch(`http://localhost:8080/stocks/${symbol}`);
-      if (!priceResponse.ok) throw new Error('Failed to fetch stock price');
+      if (!priceResponse.ok) {
+        const errorText = await priceResponse.text();
+        if (errorText.includes('no rows in result set')) {
+          throw new Error(`No data available for ${symbol}. Please try another stock.`);
+        }
+        throw new Error(`Failed to fetch stock price: ${errorText}`);
+      }
       const priceData = await priceResponse.json();
+      if (!priceData.symbol || typeof priceData.price !== 'number') {
+        throw new Error('Invalid price data format');
+      }
 
       // Then fetch historical data
       const historyResponse = await fetch(`http://localhost:8080/stocks/${symbol}/chart?range=7d`);
       if (!historyResponse.ok) {
         const errorText = await historyResponse.text();
-        console.error('History response error:', errorText);
+        if (errorText.includes('no rows in result set')) {
+          throw new Error(`No historical data available for ${symbol}. Please try another stock.`);
+        }
         throw new Error(`Failed to fetch historical data: ${errorText}`);
       }
       
       const historyData = await historyResponse.json();
-      console.log('History data received:', historyData);
-
       if (!historyData || !historyData.prices || !Array.isArray(historyData.prices)) {
-        console.error('Invalid history data format:', historyData);
         throw new Error('Invalid historical data format: expected an array of prices');
       }
 
       // Validate each data point
-      const validData = historyData.prices.filter((point: any) => {
-        const isValid = point && 
-          typeof point.price === 'number' && 
-          !isNaN(point.price) && 
-          point.price > 0 &&
-          point.timestamp;
-        
-        if (!isValid) {
-          console.warn('Invalid data point:', point);
-        }
-        return isValid;
-      });
+      const validData = historyData.prices.map((point: any) => ({
+        symbol: point.symbol || symbol,
+        price: point.price,
+        timestamp: point.timestamp || new Date().toISOString(),
+        name: stockNames[symbol] || symbol
+      })).filter((point: any) => 
+        point && 
+        typeof point.price === 'number' && 
+        !isNaN(point.price) && 
+        point.price > 0 &&
+        point.timestamp
+      );
 
       if (validData.length === 0) {
-        throw new Error('No valid historical data points found');
+        throw new Error(`No valid historical data points found for ${symbol}. Please try another stock.`);
       }
 
       // Update both states

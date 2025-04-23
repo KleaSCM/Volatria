@@ -138,6 +138,11 @@ func (d *Database) GetHistoricalPrices(symbol string, start, end time.Time) ([]S
 		stocks = append(stocks, s)
 	}
 
+	// If we have no data points, return an error
+	if len(stocks) == 0 {
+		return nil, sql.ErrNoRows
+	}
+
 	// If we have less than 30 data points, generate some synthetic data
 	if len(stocks) < 30 {
 		// Get the latest price to use as a base
