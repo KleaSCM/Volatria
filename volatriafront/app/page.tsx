@@ -3,11 +3,13 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { format } from 'date-fns';
-import { stockApi } from './lib/api';
 import { Stock, StockChartData } from './types/stock';
 import Layout from './components/Layout';
 import { motion } from 'framer-motion';
 import Sidebar from './components/Sidebar';
+import LiveChart from './components/LiveChart';
+import StockCard from './components/StockCard';
+import SearchForm from './components/SearchForm';
 
 interface ChartData {
   timestamp: string;
@@ -16,8 +18,20 @@ interface ChartData {
   volume: number | null;
 }
 
+interface PopularStock {
+  symbol: string;
+  type: 'line' | 'bar' | 'area' | 'scatter';
+  title: string;
+}
+
+const popularStocks: PopularStock[] = [
+  { symbol: 'AAPL', type: 'line', title: 'Price Trend' },
+  { symbol: 'MSFT', type: 'bar', title: 'Price Distribution' },
+  { symbol: 'GOOGL', type: 'area', title: 'Price Area' },
+  { symbol: 'AMZN', type: 'scatter', title: 'Price Points' }
+];
+
 export default function Home() {
-  const [popularStocks, setPopularStocks] = useState<Stock[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Stock[]>([]);
   const [selectedStock, setSelectedStock] = useState<StockChartData | null>(null);
@@ -26,6 +40,7 @@ export default function Home() {
   const [animationKey, setAnimationKey] = useState(0);
   const [textIndex, setTextIndex] = useState(0);
   const welcomeText = "Welcome to Volatria";
+  const [historicalData, setHistoricalData] = useState<Record<string, Stock[]>>({});
 
   // Popular stocks to show
   const popularSymbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META'];
@@ -35,9 +50,13 @@ export default function Home() {
       try {
         setLoading(true);
         const stocks = await Promise.all(
-          popularSymbols.map(symbol => stockApi.getLatestPrice(symbol))
+          popularSymbols.map(async (symbol) => {
+            const response = await fetch(`http://localhost:8080/stocks/${symbol}`);
+            if (!response.ok) throw new Error('Failed to fetch stock data');
+            return response.json();
+          })
         );
-        setPopularStocks(stocks);
+        setSearchResults(stocks);
       } catch (err: any) {
         setError(err.message || 'Failed to fetch popular stocks');
       } finally {
@@ -48,61 +67,61 @@ export default function Home() {
     fetchPopularStocks();
   }, []);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery) return;
-
+  const handleStockSelect = async (symbol: string) => {
     setLoading(true);
     setError(null);
     try {
-      const stock = await stockApi.getLatestPrice(searchQuery.toUpperCase());
-      setSearchResults([stock]);
-    } catch (err: any) {
-      setError(err.message || 'Stock not found');
-      setSearchResults([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+      // First fetch the latest price
+      const priceResponse = await fetch(`http://localhost:8080/stocks/${symbol}`);
+      if (!priceResponse.ok) throw new Error('Failed to fetch stock price');
+      const priceData = await priceResponse.json();
 
-  const handleSelectStock = async (symbol: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      console.log('Fetching historical data for:', symbol);
-      const data = await stockApi.getHistoricalPrices(symbol);
-      console.log('Received data:', data);
+      // Then fetch historical data
+      const historyResponse = await fetch(`http://localhost:8080/stocks/${symbol}/chart?range=7d`);
+      if (!historyResponse.ok) {
+        const errorText = await historyResponse.text();
+        console.error('History response error:', errorText);
+        throw new Error(`Failed to fetch historical data: ${errorText}`);
+      }
       
-      if (!data || !data.prices || !Array.isArray(data.prices) || data.prices.length === 0) {
-        throw new Error('No price data available for this stock');
+      const historyData = await historyResponse.json();
+      console.log('History data received:', historyData);
+
+      if (!historyData || !historyData.prices || !Array.isArray(historyData.prices)) {
+        console.error('Invalid history data format:', historyData);
+        throw new Error('Invalid historical data format: expected an array of prices');
       }
 
-      // Ensure all prices have valid data
-      const validPrices = data.prices.filter(price => {
-        const isValid = price && 
-          typeof price.price === 'number' && 
-          !isNaN(price.price) && 
-          price.price > 0 &&
-          price.timestamp;
+      // Validate each data point
+      const validData = historyData.prices.filter((point: any) => {
+        const isValid = point && 
+          typeof point.price === 'number' && 
+          !isNaN(point.price) && 
+          point.price > 0 &&
+          point.timestamp;
         
         if (!isValid) {
-          console.warn('Invalid price data:', price);
+          console.warn('Invalid data point:', point);
         }
         return isValid;
       });
 
-      if (validPrices.length === 0) {
-        throw new Error('No valid price data available');
+      if (validData.length === 0) {
+        throw new Error('No valid historical data points found');
       }
 
-      console.log('Valid prices:', validPrices);
+      // Update both states
+      setHistoricalData(prev => ({
+        ...prev,
+        [symbol]: validData
+      }));
       setSelectedStock({
-        symbol: data.symbol,
-        prices: validPrices
+        symbol,
+        prices: validData
       });
-    } catch (err: any) {
-      console.error('Error fetching stock data:', err);
-      setError(err.message || 'Failed to fetch stock data');
+    } catch (error) {
+      console.error('Error in handleStockSelect:', error);
+      setError(error instanceof Error ? error.message : 'Failed to fetch stock data');
       setSelectedStock(null);
     } finally {
       setLoading(false);
@@ -124,6 +143,13 @@ export default function Home() {
       return () => clearTimeout(timeout);
     }
   }, [textIndex]);
+
+  // Load initial data for popular stocks
+  useEffect(() => {
+    popularSymbols.forEach(symbol => {
+      handleStockSelect(symbol);
+    });
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white">
@@ -166,24 +192,7 @@ export default function Home() {
 
           {/* Search Section */}
           <div className="mb-12">
-            <form onSubmit={handleSearch} className="max-w-2xl mx-auto">
-              <div className="flex gap-4">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value.toUpperCase())}
-                  placeholder="Search for a stock symbol..."
-                  className="flex-1 px-4 py-2 rounded-lg bg-purple-800/50 border border-purple-600 text-white placeholder-purple-400 focus:outline-none focus:ring-2 focus:ring-pink-500"
-                />
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-6 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50 transition-colors"
-                >
-                  {loading ? 'Searching...' : 'Search'}
-                </button>
-              </div>
-            </form>
+            <SearchForm onSearch={handleStockSelect} />
           </div>
 
           {error && (
@@ -192,159 +201,51 @@ export default function Home() {
             </div>
           )}
 
-          {/* Search Results */}
-          {searchResults.length > 0 && (
-            <div className="mb-12">
-              <h2 className="text-2xl font-semibold text-pink-200 mb-4">Search Results</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {searchResults.map((stock) => (
-                  <button
-                    key={stock.symbol}
-                    onClick={() => handleSelectStock(stock.symbol)}
-                    className="p-6 bg-purple-900/50 backdrop-blur-sm rounded-xl border border-purple-700 hover:border-pink-500 transition-all hover:shadow-lg hover:shadow-pink-500/20"
-                  >
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-xl font-semibold text-pink-200">{stock.symbol}</h3>
-                      <span className="text-lg font-medium text-white">${stock.price.toFixed(2)}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Popular Stocks */}
-          <div className="mb-12">
-            <h2 className="text-2xl font-semibold text-pink-200 mb-4">Popular Stocks</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {popularStocks.map((stock) => (
-                <button
-                  key={stock.symbol}
-                  onClick={() => handleSelectStock(stock.symbol)}
-                  className="p-6 bg-purple-900/50 backdrop-blur-sm rounded-xl border border-purple-700 hover:border-pink-500 transition-all hover:shadow-lg hover:shadow-pink-500/20"
-                >
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-semibold text-pink-200">{stock.symbol}</h3>
-                    <span className="text-lg font-medium text-white">${stock.price.toFixed(2)}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Selected Stock Chart */}
-          {selectedStock && selectedStock.prices && selectedStock.prices.length > 0 && (
-            <div className="bg-purple-900/50 backdrop-blur-sm p-6 rounded-xl border border-purple-700">
+          {/* Selected Stock Section */}
+          {selectedStock && (
+            <div className="mb-8">
               <h2 className="text-2xl font-semibold text-pink-200 mb-4">
-                {selectedStock.symbol} Price History
+                {selectedStock.symbol} - ${selectedStock.prices[0]?.price.toFixed(2) || '0.00'}
               </h2>
-              <div className="h-96">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart 
-                    data={selectedStock.prices
-                      .map((price, index, array) => {
-                        // Calculate 5-day moving average
-                        let ma5: number | null = null;
-                        if (index >= 5) {
-                          const prices = array.slice(index - 5, index + 1).map(p => p.price);
-                          const sum = prices.reduce((acc, curr) => acc + curr, 0);
-                          ma5 = sum / prices.length;
-                        }
-                        
-                        // Calculate volume (simulated based on price change)
-                        let volume: number | null = null;
-                        if (index > 0) {
-                          const prevPrice = array[index - 1].price;
-                          const priceChange = (price.price - prevPrice) / prevPrice;
-                          volume = Math.abs(priceChange) * 1000000;
-                        }
-
-                        return {
-                          timestamp: price.timestamp,
-                          price: price.price,
-                          ma5: ma5,
-                          volume: volume
-                        };
-                      })
-                    }
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#4C1D95" />
-                    <XAxis
-                      dataKey="timestamp"
-                      tick={{ fill: '#A78BFA' }}
-                      tickFormatter={(value) => new Date(value).toLocaleDateString()}
-                    />
-                    <YAxis
-                      yAxisId="left"
-                      tick={{ fill: '#A78BFA' }}
-                      domain={['auto', 'auto']}
-                    />
-                    <YAxis
-                      yAxisId="right"
-                      orientation="right"
-                      tick={{ fill: '#A78BFA' }}
-                      domain={['auto', 'auto']}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#1F2937',
-                        border: '1px solid #4C1D95',
-                        borderRadius: '0.5rem',
-                        color: '#E9D5FF'
-                      }}
-                      formatter={(value: number, name: string) => {
-                        if (value === null || value === undefined) return ['N/A', name];
-                        return [
-                          name === 'price' ? `$${value.toFixed(2)}` : 
-                          name === 'ma5' ? `$${value.toFixed(2)}` : 
-                          `${value.toLocaleString()} shares`,
-                          name === 'price' ? 'Price' : 
-                          name === 'ma5' ? '5-Day MA' : 'Volume'
-                        ];
-                      }}
-                      labelFormatter={(label) => new Date(label).toLocaleDateString()}
-                    />
-                    <Legend 
-                      wrapperStyle={{
-                        paddingTop: '20px',
-                        color: '#E9D5FF'
-                      }}
-                    />
-                    <Line
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="price"
-                      stroke="#EC4899"
-                      strokeWidth={2}
-                      dot={false}
-                      name="Price"
-                      isAnimationActive={false}
-                    />
-                    <Line
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="ma5"
-                      stroke="#8B5CF6"
-                      strokeWidth={2}
-                      dot={false}
-                      name="5-Day MA"
-                      isAnimationActive={false}
-                    />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="volume"
-                      stroke="#A78BFA"
-                      strokeWidth={2}
-                      dot={false}
-                      name="Volume"
-                      isAnimationActive={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <LiveChart
+                  data={historicalData[selectedStock.symbol] || []}
+                  symbol={selectedStock.symbol}
+                  type="line"
+                  title="Price Trend"
+                />
+                <LiveChart
+                  data={historicalData[selectedStock.symbol] || []}
+                  symbol={selectedStock.symbol}
+                  type="bar"
+                  title="Price Distribution"
+                />
+                <LiveChart
+                  data={historicalData[selectedStock.symbol] || []}
+                  symbol={selectedStock.symbol}
+                  type="area"
+                  title="Price Area"
+                />
+                <LiveChart
+                  data={historicalData[selectedStock.symbol] || []}
+                  symbol={selectedStock.symbol}
+                  type="scatter"
+                  title="Price Points"
+                />
               </div>
             </div>
           )}
+
+          {/* Popular Stocks Section */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {popularSymbols.map((symbol) => (
+              <StockCard
+                key={symbol}
+                stock={historicalData[symbol]?.[0] || { symbol, price: 0, timestamp: new Date().toISOString() }}
+                onClick={() => handleStockSelect(symbol)}
+              />
+            ))}
+          </div>
         </div>
       </Layout>
     </div>
