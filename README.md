@@ -62,6 +62,19 @@ Volatria is a modern, real-time stock market dashboard built with Next.js fronte
 - 🔄 CORS support
 - 🔄 Concurrent data fetching
 
+## 🚀 Features
+
+- Real-time stock price updates
+- Interactive charts and technical analysis
+- Portfolio tracking and performance metrics
+- Watchlist management
+- User authentication and profile management
+- Responsive design for all devices
+
+
+
+## 🛠️ Tech Stack
+
 ## 🛠️ Technical Details
 
 ### Backend Architecture
